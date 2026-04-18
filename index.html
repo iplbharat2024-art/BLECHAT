@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Bluetooth Chat - A peer-to-peer messaging app using Web Bluetooth API">
+    <title>Bluetooth Chat — P2P Messaging</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Unsupported Browser Warning -->
+    <div id="unsupported-warning" class="unsupported-warning hidden">
+        <div class="warning-card">
+            <div class="warning-icon">⚠️</div>
+            <h2>Browser Not Supported</h2>
+            <p>The Web Bluetooth API is not supported in your browser. Please use <strong>Google Chrome</strong> (desktop or Android) with the following flags enabled:</p>
+            <code>chrome://flags/#enable-experimental-web-platform-features</code>
+            <p class="warning-note">Note: iOS Safari and Firefox do not support Web Bluetooth.</p>
+            <button id="dismiss-warning" class="btn btn-secondary">Continue Anyway (Demo Mode)</button>
+        </div>
+    </div>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="app-header" id="app-header">
+            <div class="header-left">
+                <div class="header-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/>
+                    </svg>
+                </div>
+                <div class="header-info">
+                    <h1>Bluetooth Chat</h1>
+                    <div class="connection-status" id="connection-status">
+                        <span class="status-dot disconnected" id="status-dot"></span>
+                        <span class="status-text" id="status-text">Disconnected</span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="btn-debug" class="icon-btn" title="Toggle Debug Panel" aria-label="Toggle debug panel">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h.01"/><path d="M8 16V8a4 4 0 018 0v8"/><path d="M5 12h2"/><path d="M17 12h2"/><path d="M5 8l1.5 1"/><path d="M18 8l-1.5 1"/><path d="M5 16l1.5-1"/><path d="M18 16l-1.5-1"/>
+                    </svg>
+                </button>
+                <button id="btn-reconnect" class="icon-btn hidden" title="Reconnect" aria-label="Reconnect to device">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                </button>
+                <button id="btn-disconnect" class="icon-btn danger hidden" title="Disconnect" aria-label="Disconnect from device">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+        <!-- Debug Panel -->
+        <div id="debug-panel" class="debug-panel hidden">
+            <div class="debug-header">
+                <span>🐛 Debug Console</span>
+                <button id="btn-clear-debug" class="btn btn-small">Clear</button>
+            </div>
+            <div id="debug-log" class="debug-log"></div>
+        </div>
+        <!-- Role Selection -->
+        <div id="role-selection" class="role-selection">
+            <div class="role-card-container">
+                <div class="role-intro">
+                    <div class="role-intro-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11"/>
+                        </svg>
+                    </div>
+                    <h2>Choose Your Role</h2>
+                    <p>Select how you want to connect with another device</p>
+                </div>
+                <div class="role-cards">
+                    <button id="btn-host" class="role-card">
+                        <div class="role-card-icon host-icon">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                        </div>
+                        <h3>Host</h3>
+                        <p>Advertise your device and wait for a client to connect</p>
+                        <span class="role-badge">Creates Session</span>
+                    </button>
+                    <button id="btn-client" class="role-card">
+                        <div class="role-card-icon client-icon">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                            </svg>
+                        </div>
+                        <h3>Client</h3>
+                        <p>Scan for nearby host devices and connect to one</p>
+                        <span class="role-badge">Joins Session</span>
+                    </button>
+                </div>
+                <div class="demo-section">
+                    <button id="btn-demo" class="btn btn-demo">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Try Demo Mode
+                    </button>
+                    <p class="demo-hint">Test the chat UI without Bluetooth hardware</p>
+                </div>
+            </div>
+        </div>
+        <!-- Chat Area -->
+        <div id="chat-area" class="chat-area hidden">
+            <div id="messages" class="messages">
+                <div class="chat-start-indicator">
+                    <div class="start-icon">🔗</div>
+                    <p>Connection established</p>
+                    <span class="start-time" id="start-time"></span>
+                </div>
+            </div>
+        </div>
+        <!-- Message Input -->
+        <div id="message-input-area" class="message-input-area hidden">
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="message-input" 
+                    class="message-input" 
+                    placeholder="Type a message..." 
+                    maxlength="512"
+                    autocomplete="off"
+                    aria-label="Type a message"
+                >
+                <button id="btn-send" class="btn-send" title="Send message" aria-label="Send message" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
