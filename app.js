@@ -90,7 +90,14 @@ function attachListeners() {
     });
 }
 // ===== WebSocket Connection =====
+function isConnected() {
+    return State.ws && State.ws.readyState === WebSocket.OPEN;
+}
 function connectWebSocket() {
+    // Prevent duplicate connections
+    if (State.ws && (State.ws.readyState === WebSocket.OPEN || State.ws.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
     const wsUrl = `${protocol}://${location.host}`;
     console.log(`[WS] Connecting to ${wsUrl}...`);
@@ -100,7 +107,13 @@ function connectWebSocket() {
         console.log('[WS] Connected');
         State.ws = ws;
         State.reconnectAttempts = 0;
-        setStatus('', 'Ready');
+        setStatus('connected', 'Connected to server');
+        // Execute any pending action after reconnect
+        if (State._pendingAction) {
+            const action = State._pendingAction;
+            State._pendingAction = null;
+            action();
+        }
         // If we were in a room, try to rejoin
         if (State.roomCode && State.role === 'client') {
             ws.send(JSON.stringify({
@@ -144,6 +157,18 @@ function connectWebSocket() {
     ws.onerror = (err) => {
         console.error('[WS] Error:', err);
     };
+}
+// Try to reconnect and then execute the action
+function ensureConnected(action) {
+    if (isConnected()) {
+        action();
+        return;
+    }
+    showToast('Reconnecting to server…');
+    setStatus('waiting', 'Reconnecting…');
+    State.reconnectAttempts = 0;
+    State._pendingAction = action;
+    connectWebSocket();
 }
 // ===== Handle Server Messages =====
 function handleServerMessage(msg) {
@@ -212,13 +237,11 @@ function handleServerMessage(msg) {
 // ===== Room Actions =====
 function createRoom() {
     const name = DOM.inputName.value.trim() || 'Host';
-    if (!State.ws || State.ws.readyState !== WebSocket.OPEN) {
-        showToast('Not connected to server');
-        return;
-    }
     State.myName = name;
     localStorage.setItem('chat-username', name);
-    State.ws.send(JSON.stringify({ type: 'create-room', name }));
+    ensureConnected(() => {
+        State.ws.send(JSON.stringify({ type: 'create-room', name: State.myName }));
+    });
 }
 function joinRoom() {
     const name = DOM.inputName.value.trim() || 'Guest';
@@ -227,13 +250,15 @@ function joinRoom() {
         showToast('Enter a valid 6-digit room code');
         return;
     }
-    if (!State.ws || State.ws.readyState !== WebSocket.OPEN) {
-        showToast('Not connected to server');
-        return;
-    }
     State.myName = name;
     localStorage.setItem('chat-username', name);
-    State.ws.send(JSON.stringify({ type: 'join-room', roomCode: code, name }));
+    ensureConnected(() => {
+        State.ws.send(JSON.stringify({
+            type: 'join-room',
+            roomCode: DOM.inputCode.value.trim(),
+            name: State.myName
+        }));
+    });
 }
 function leaveRoom() {
     if (State.ws && State.ws.readyState === WebSocket.OPEN) {
@@ -247,8 +272,10 @@ function leaveRoom() {
 function sendMessage() {
     const text = DOM.msgInput.value.trim();
     if (!text) return;
-    if (!State.ws || State.ws.readyState !== WebSocket.OPEN) {
-        showToast('Not connected');
+    if (!isConnected()) {
+        showToast('Not connected — trying to reconnect…');
+        State.reconnectAttempts = 0;
+        connectWebSocket();
         return;
     }
     State.ws.send(JSON.stringify({ type: 'chat-message', text }));
